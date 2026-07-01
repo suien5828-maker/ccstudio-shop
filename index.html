@@ -159,9 +159,9 @@ async function loadProducts() {
   const { data } = await sb.from('products').select('*').eq('is_active', true).order('created_at', { ascending: false });
   products = (data || []).map(p => ({
     ...p,
-    _twd: Math.round(p.price_jpy * rate + p.weight_kg * shippingPerKg),
-    _rate: rate,
-    _shippingPerKg: shippingPerKg,
+    _twd: p.price_twd > 0
+      ? p.price_twd
+      : Math.round((p.price_jpy * rate + p.weight_kg * shippingPerKg) / 10) * 10,
   }));
   document.getElementById('loading').style.display = 'none';
   filterProducts();
