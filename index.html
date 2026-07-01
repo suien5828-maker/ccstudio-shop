@@ -114,7 +114,7 @@ function renderProducts(list) {
         <div class="product-name">${esc(p.name)}</div>
         ${p.description?`<div class="product-desc">${esc(p.description)}</div>`:''}
         <div class="product-price">NT$${Math.round(p._twd||0).toLocaleString()}</div>
-        <div class="product-jpy">日幣原價 ¥${Number(p.price_jpy).toLocaleString()}</div>
+
       </div>
     </div>`).join('');
 }
