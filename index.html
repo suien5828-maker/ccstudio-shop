@@ -35,6 +35,7 @@ body { background: #F5F3EF; font-family: 'PingFang TC','Noto Sans TC',sans-serif
 .loading { text-align: center; color: #A0A0B8; font-size: 12px; padding: 60px 0; }
 .count { font-size: 12px; color: #A0A0B8; text-align: center; padding: 10px 0 4px; }
 .hint { text-align:center; color:#A0A0B8; font-size:11px; padding:8px 0 16px; }
+.page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -50,7 +51,8 @@ body { background: #F5F3EF; font-family: 'PingFang TC','Noto Sans TC',sans-serif
 
 <div class="tabs">
   <div class="tabs-inner">
-    <button class="tab-btn active" onclick="switchCat('')">全部</button>
+    <button class="tab-btn active" onclick="switchCat('__NEW__')">🆕 最新上架</button>
+    <button class="tab-btn" onclick="switchCat('')">全部</button>
     <button class="tab-btn" onclick="switchCat('熱門商品')">🔥 熱門</button>
     <button class="tab-btn" onclick="switchCat('好市多專區')">🏪 好市多</button>
     <button class="tab-btn" onclick="switchCat('食品/調味料')">🍜 食品</button>
@@ -63,6 +65,11 @@ body { background: #F5F3EF; font-family: 'PingFang TC','Noto Sans TC',sans-serif
   <div id="count" class="count" style="display:none"></div>
   <div class="hint" id="hint" style="display:none">💡 看到喜歡的商品，長按截圖後傳給我們！</div>
   <div class="product-grid" id="product-grid"></div>
+  <div id="pagination" style="display:none;display:flex;justify-content:center;align-items:center;gap:12px;padding:20px 0">
+    <button id="prev-btn" onclick="changePage(-1)" style="background:#1A1A2E;color:#E8A87C;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">← 上一頁</button>
+    <span id="page-info" style="font-size:13px;color:#6B6B80"></span>
+    <button id="next-btn" onclick="changePage(1)" style="background:#1A1A2E;color:#E8A87C;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">下一頁 →</button>
+  </div>
 </div>
 
 <script>
@@ -71,24 +78,43 @@ const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const sb = window.supabase.createClient(SURL, SKEY);
 
 let products = [];
-let currentCat = '';
+let currentCat = '__NEW__';
+let currentPage = 1;
+const PAGE_SIZE = 20;
+const NEW_SIZE = 30;
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function switchCat(cat) {
   currentCat = cat;
+  currentPage = 1;
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   event.target.classList.add('active');
   document.getElementById('search').value = '';
   filterProducts();
 }
 
+function changePage(dir) {
+  currentPage += dir;
+  filterProducts();
+  window.scrollTo(0, 0);
+}
+
 function filterProducts() {
   const q = document.getElementById('search').value.trim().toLowerCase();
   let filtered = products.filter(p => p.is_active);
+
+  if (currentCat === '__NEW__') {
+    // 最新上架：最新30件，不分頁
+    filtered = filtered.slice(0, NEW_SIZE);
+    if (q) filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || (p.description||'').toLowerCase().includes(q));
+    renderProducts(filtered, false);
+    return;
+  }
+
   if (currentCat) filtered = filtered.filter(p => p.category === currentCat);
   if (q) filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || (p.description||'').toLowerCase().includes(q));
-  renderProducts(filtered);
+  renderProducts(filtered, true);
 }
 
 function renderProducts(list) {
