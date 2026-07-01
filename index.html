@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CC 選物 - 商品瀏覽</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #F5F3EF; font-family: 'PingFang TC','Noto Sans TC',sans-serif; min-height: 100vh; }
+.header { background: #1A1A2E; padding: 20px; border-bottom: 3px solid #E8A87C; text-align: center; }
+.header-eyebrow { font-size: 10px; letter-spacing: 4px; color: #E8A87C; margin-bottom: 4px; }
+.header h1 { color: #fff; font-size: 22px; font-weight: 700; }
+.header p { color: #A0A0B8; font-size: 12px; margin-top: 4px; }
+.search-bar { background: #fff; padding: 12px 16px; border-bottom: 1px solid #E8E4DF; position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.search-bar input { width: 100%; max-width: 500px; display: block; margin: 0 auto; border: 1.5px solid #DDD8D0; border-radius: 20px; padding: 9px 16px; font-size: 13px; color: #1A1A2E; background: #FAFAF8; outline: none; font-family: inherit; }
+.search-bar input:focus { border-color: #E8A87C; }
+.tabs { background: #fff; border-bottom: 1px solid #E8E4DF; overflow-x: auto; }
+.tabs-inner { display: flex; max-width: 700px; margin: 0 auto; }
+.tab-btn { background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; padding: 11px 16px; font-size: 13px; font-weight: 600; color: #A0A0B8; font-family: inherit; white-space: nowrap; flex-shrink: 0; }
+.tab-btn.active { color: #E8A87C; border-bottom-color: #E8A87C; }
+.main { max-width: 700px; margin: 0 auto; padding: 16px; }
+.product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+@media (min-width: 500px) { .product-grid { grid-template-columns: repeat(3, 1fr); } }
+.product-card { background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #E8E4DF; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.product-img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: #F0EDEA; }
+.product-img-placeholder { width: 100%; aspect-ratio: 1; background: #F0EDEA; display: flex; align-items: center; justify-content: center; font-size: 36px; }
+.product-body { padding: 10px; }
+.product-name { font-weight: 700; color: #1A1A2E; font-size: 13px; margin-bottom: 3px; line-height: 1.3; }
+.product-desc { font-size: 11px; color: #A0A0B8; margin-bottom:5px; line-height:1.3; }
+.product-price { font-size: 16px; font-weight: 700; color: #E8A87C; }
+.product-jpy { font-size: 10px; color: #B0A8A0; margin-top: 2px; }
+.category-tag { display: inline-block; background: #F0EDEA; color: #6B6B80; border-radius: 4px; padding: 1px 6px; font-size: 10px; margin-bottom: 5px; }
+.empty { text-align: center; color: #B0AAA4; font-size: 13px; padding: 60px 0; }
+.loading { text-align: center; color: #A0A0B8; font-size: 12px; padding: 60px 0; }
+.count { font-size: 12px; color: #A0A0B8; text-align: center; padding: 10px 0 4px; }
+.hint { text-align:center; color:#A0A0B8; font-size:11px; padding:8px 0 16px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-eyebrow">CC 選物代購</div>
+  <h1>🛍 選物目錄</h1>
+  <p>看到喜歡的商品，截圖後傳給我們下單！</p>
+</div>
+
+<div class="search-bar">
+  <input type="text" id="search" placeholder="🔍 搜尋商品名稱…" oninput="filterProducts()">
+</div>
+
+<div class="tabs">
+  <div class="tabs-inner">
+    <button class="tab-btn active" onclick="switchCat('')">全部</button>
+    <button class="tab-btn" onclick="switchCat('熱門商品')">🔥 熱門</button>
+    <button class="tab-btn" onclick="switchCat('好市多專區')">🏪 好市多</button>
+    <button class="tab-btn" onclick="switchCat('食品/調味料')">🍜 食品</button>
+    <button class="tab-btn" onclick="switchCat('一般商品')">📦 一般</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="loading" id="loading">載入中…</div>
+  <div id="count" class="count" style="display:none"></div>
+  <div class="hint" id="hint" style="display:none">💡 看到喜歡的商品，長按截圖後傳給我們！</div>
+  <div class="product-grid" id="product-grid"></div>
+</div>
+
+<script>
+const SURL = 'https://zwabpiysvlqvqunauwyj.supabase.co';
+const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3YWJwaXlzdmxxdnF1bmF1d3lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMTA1MzgsImV4cCI6MjA5NzY4NjUzOH0.-jx1ikazqqKRta-8lEoifeKR9bVVm_E00m4e17q_6z8';
+const sb = window.supabase.createClient(SURL, SKEY);
+
+let products = [];
+let currentCat = '';
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function switchCat(cat) {
+  currentCat = cat;
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('search').value = '';
+  filterProducts();
+}
+
+function filterProducts() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  let filtered = products.filter(p => p.is_active);
+  if (currentCat) filtered = filtered.filter(p => p.category === currentCat);
+  if (q) filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || (p.description||'').toLowerCase().includes(q));
+  renderProducts(filtered);
+}
+
+function renderProducts(list) {
+  const grid = document.getElementById('product-grid');
+  const count = document.getElementById('count');
+  const hint = document.getElementById('hint');
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">找不到商品 😢</div>';
+    count.style.display = 'none';
+    hint.style.display = 'none';
+    return;
+  }
+  count.textContent = `共 ${list.length} 件商品`;
+  count.style.display = 'block';
+  hint.style.display = 'block';
+  grid.innerHTML = list.map(p => `
+    <div class="product-card">
+      ${p.image_url
+        ? `<img src="${esc(p.image_url)}" class="product-img" loading="lazy">`
+        : '<div class="product-img-placeholder">📦</div>'}
+      <div class="product-body">
+        <div class="category-tag">${esc(p.category||'一般商品')}</div>
+        <div class="product-name">${esc(p.name)}</div>
+        ${p.description?`<div class="product-desc">${esc(p.description)}</div>`:''}
+        <div class="product-price">NT$${Math.round(p._twd||0).toLocaleString()}</div>
+        <div class="product-jpy">日幣原價 ¥${Number(p.price_jpy).toLocaleString()}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function loadProducts() {
+  const { data } = await sb.from('products').select('*').eq('is_active', true).order('created_at', { ascending: false });
+  products = (data || []).map(p => ({
+    ...p,
+    _twd: Math.round(p.price_jpy * 0.3 + p.weight_kg * 220)
+  }));
+  document.getElementById('loading').style.display = 'none';
+  filterProducts();
+}
+
+loadProducts();
+</script>
+</body>
+</html>
