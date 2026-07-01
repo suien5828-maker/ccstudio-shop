@@ -120,10 +120,22 @@ function renderProducts(list) {
 }
 
 async function loadProducts() {
+  // Load settings from DB
+  const { data: settings } = await sb.from('settings').select('*');
+  let rate = 0.3, shippingPerKg = 220;
+  if (settings) {
+    settings.forEach(s => {
+      if (s.key === 'rate') rate = Number(s.value);
+      if (s.key === 'shipping_per_kg') shippingPerKg = Number(s.value);
+    });
+  }
+
   const { data } = await sb.from('products').select('*').eq('is_active', true).order('created_at', { ascending: false });
   products = (data || []).map(p => ({
     ...p,
-    _twd: Math.round(p.price_jpy * 0.3 + p.weight_kg * 220)
+    _twd: Math.round(p.price_jpy * rate + p.weight_kg * shippingPerKg),
+    _rate: rate,
+    _shippingPerKg: shippingPerKg,
   }));
   document.getElementById('loading').style.display = 'none';
   filterProducts();
